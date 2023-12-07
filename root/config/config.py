@@ -34,8 +34,6 @@ R_SQL = namedtuple("R_SQL", "question answer")
 
 async def create_pool():
     pool[0]: asyncpg.Pool = await asyncpg.create_pool(dsn=config['DATABASE_URL'])
-                                                      #user='physics', password='MaRkiz851', database='test_db',
-                                                      #host='localhost', port=5432)
 
 
 async def update_privileged_users():
