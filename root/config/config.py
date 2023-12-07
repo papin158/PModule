@@ -1,7 +1,7 @@
 import numpy as np, asyncpg
 from collections import namedtuple
 from dotenv import load_dotenv
-import os
+import os, typing
 
 config = {
 
@@ -16,18 +16,15 @@ __all__ = [
     'pool',
     'faq_list',
     'privileged_users',
-    'super_admins',
+    'group_subordinate',
     'R_SQL'
 ]
 
 pool = np.array([None], dtype=object)
 faq_list = np.array([None], dtype=object)
-privileged_users = {
-    "admins": set(),
-    "supports": set()
-                    }
+group_subordinate = np.array([None], dtype=object)
+privileged_users = {}
 
-super_admins = set()
 
 R_SQL = namedtuple("R_SQL", "question answer")
 
@@ -37,8 +34,19 @@ async def create_pool():
 
 
 async def update_privileged_users():
-    from root.utils.databases.dbcommands import PUsers
+    from root.utils.databases.dbcommands import PUsers, SGroups, Privileged
     pusers = PUsers()
+    sgroups = SGroups()
+    privileged = Privileged()
     await pusers.create_table()
-    privileged_users['admins'].update(*(await pusers.get('admins', "user_id")))
-    privileged_users['supports'].update(*(await pusers.get('supports', "user_id")))
+    await sgroups.create_table()
+    await privileged.create_table()
+    user_groups = await sgroups.get_all()
+    if not user_groups: return
+
+    for group in user_groups:
+        privileged_users[group[0]] = set(*(await privileged.get(group[0], "user_id")))
+
+    del privileged
+    del sgroups
+    del pusers
