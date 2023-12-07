@@ -200,3 +200,10 @@ class Privileged(DataBase):
                 '''
 
         return await self.connector.fetch(query, user_group)
+
+    async def get_user_privileges(self, user_id: int):
+        query = '''SELECT array_agg("Privileges".user_group) FROM public."Privileges" JOIN public."SGroups" 
+                   ON public."SGroups".user_group=public."Privileges".user_group WHERE puser=$1;
+                '''
+
+        return await self.connector.fetch(query, user_id)
