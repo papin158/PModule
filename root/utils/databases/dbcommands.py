@@ -1,9 +1,10 @@
 import json
 import typing
-
 import aiogram
+from pydantic import BaseModel
 from prompt import system_prompt
-from asyncpg import Connection
+from asyncpg import Connection, Pool
+from redis.asyncio import Redis as RConnection
 from root.config.config import pool
 from abc import ABCMeta, abstractmethod
 
@@ -18,10 +19,30 @@ class DataBase(metaclass=ABCMeta):
         return cls._instance
 
     def __init__(self):
-        self.connector: Connection = pool[0]
+        self.connector: Pool = pool.PostgreSQL
 
     @abstractmethod
     async def create_table(self): ...
+
+    @abstractmethod
+    async def add(self, *args, **kwargs): ...
+
+    @abstractmethod
+    async def get(self, *args, **kwargs): ...
+
+
+class RedisDatabase(metaclass=ABCMeta):
+    __slots__ = ('connector', )
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(RedisDatabase, cls).__new__(cls)
+        return cls._instance
+
+    def __init__(self):
+        super().__init__()
+        self.connector: RConnection = pool.Redis
 
     @abstractmethod
     async def add(self, *args, **kwargs): ...
@@ -58,7 +79,7 @@ class Context_SQLRequest(DataBase):
     async def get(self):
         query = '''SELECT * FROM public."Context" WHERE user_id=$1'''
         user = await self.connector.fetchrow(query, self.user.id)
-        if not user or not user['context']:
+        if not user and not user['context']:
             await self.clear_context()
             user = await self.get()
         return user
@@ -92,10 +113,9 @@ class FAQ_SQLRequests(DataBase):
                 '''
         return await self.connector.fetch(query, question, answer)
 
-    async def get(self):
+    async def get(self) -> list[typing.OrderedDict[typing.Literal['question'], typing.Literal['answer']], ...]:
         query = '''SELECT * FROM public."FAQ" ORDER BY question;
                 '''
-
         return await self.connector.fetch(query)
 
     async def delete(self, question):
@@ -114,25 +134,30 @@ class PUsers(DataBase):
     async def create_table(self):
         query = '''CREATE TABLE IF NOT EXISTS public."PUsers"(
                    user_id bigint PRIMARY KEY,
-                   user_fullname varchar(255)
+                   super_user bool NOT NULL DEFAULT False
                    );
                 '''
 
         await self.connector.execute(query)
 
-    async def add(self, user: aiogram.types.User):
-        query = '''INSERT INTO public."PUsers" (user_id, user_fullname)
+    async def add(self, user_id: int, super_user: bool = False):
+        query = '''INSERT INTO public."PUsers" (user_id, super_user)
                    VALUES ($1, $2)
-                   ON CONFLICT (user_id) DO UPDATE SET user_fullname=excluded.user_fullname
+                   ON CONFLICT (user_id) DO UPDATE SET super_user=excluded.super_user
                    RETURNING *;
                 '''
-        return await self.connector.fetch(query, user.id, user.full_name)
+        return await self.connector.fetch(query, user_id, super_user)
 
     async def get(self, user_id, what_select: str = '*'):
         query = f'''SELECT {what_select} FROM public."PUsers" WHERE user_id=$1;
                 '''
 
         return await self.connector.fetch(query, user_id)
+
+    async def delete(self, user_id):
+        query = '''DELETE FROM "PUsers" WHERE user_id=$1;
+                '''
+        return self.connector.execute(query, user_id)
 
 
 class SGroups(DataBase):
@@ -164,7 +189,7 @@ class SGroups(DataBase):
         query = '''SELECT * FROM public."SGroups";
                 '''
 
-        return self.connector.fetch(query)
+        return await self.connector.fetch(query)
 
     async def del_(self, user_group):
         query = '''DELETE FROM public."SGroups" WHERE user_group=$1;
@@ -181,10 +206,10 @@ class Privileged(DataBase):
 
     async def create_table(self):
         query = '''CREATE TABLE IF NOT EXISTS public."Privileges"(
-                           puser bigint REFERENCES public."PUsers" ON DELETE CASCADE,
-                           user_group varchar(255) REFERENCES public."SGroups" ON DELETE CASCADE,
-                           PRIMARY KEY (puser, user_group)
-                           );
+                   puser bigint REFERENCES public."PUsers" ON DELETE CASCADE,
+                   user_group varchar(255) REFERENCES public."Groups" ON DELETE CASCADE,
+                   PRIMARY KEY (puser, user_group)
+);
                         '''
         await self.connector.execute(query)
 
@@ -202,8 +227,32 @@ class Privileged(DataBase):
         return await self.connector.fetch(query, user_group)
 
     async def get_user_privileges(self, user_id: int):
-        query = '''SELECT array_agg("Privileges".user_group) FROM public."Privileges" JOIN public."SGroups" 
+        query = '''SELECT array_agg("Privileges".user_group) as user_groups FROM public."Privileges" JOIN public."SGroups" 
                    ON public."SGroups".user_group=public."Privileges".user_group WHERE puser=$1;
                 '''
 
         return await self.connector.fetch(query, user_id)
+
+    async def get_users_privileges(self):
+        # query = '''SELECT "Privileges".puser, array_agg("Privileges".user_group) as user_groups FROM public."Privileges" JOIN public."SGroups"
+        #            ON public."SGroups".user_group=public."Privileges".user_group GROUP BY "Privileges".puser;
+        #         '''
+
+        query = '''SELECT DISTINCT "Privileges".puser, array_agg(DISTINCT "Privileges".user_group) as user_groups,
+                   array_agg(DISTINCT "SGroups".subordinate_group) FILTER ( WHERE "SGroups".subordinate_group IS NOT NULL ) as user_subordinate_groups,
+                   bool_or(super_user) as super_user,
+                   bool_or("Groups".add_or_delete_group) as add_or_delete_group, bool_or(update_user_group) as update_user_group,
+                   bool_or("Groups".update_permissions_subgroup) as update_permissions_subgroup, bool_or(update_faq) as update_faq
+                       FROM "Privileges"
+                       LEFT JOIN "SGroups" ON "SGroups".user_group = "Privileges".user_group
+                       JOIN "Groups" ON "Groups".user_group="Privileges".user_group
+                       JOIN "PUsers" PU ON "Privileges".puser = PU.user_id GROUP BY "Privileges".puser;
+                '''
+
+        return await self.connector.fetch(query)
+
+    async def delete(self, user_id: int, user_group: str = ''):
+        query = f'''DELETE FROM "Privileges" WHERE puser=$1 {f"AND user_group='{user_group}'" if user_group else ''}; 
+                '''
+
+        return await self.connector.execute(query, user_id)

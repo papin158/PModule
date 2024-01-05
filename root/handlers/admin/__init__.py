@@ -1,5 +1,5 @@
 from aiogram import Router
-from . import data_message, supports, fsm, FAQ
+from . import __init_file__, __init_dirs__
 
 router = Router()
-router.include_routers(data_message.router, FAQ.router, fsm.router)  # , supports.router)
+router.include_routers(__init_file__.router, __init_dirs__.router)

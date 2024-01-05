@@ -1,3 +1,6 @@
+import typing
+from dataclasses import dataclass
+
 text = """
 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vivamus luctus mattis lacinia. Etiam lectus erat, convallis id porta vel, accumsan eleifend mi. Proin nec eros cursus justo molestie dapibus. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Phasellus ut purus massa. Maecenas vehicula commodo elit, a vestibulum purus dapibus auctor. Quisque condimentum in neque at dictum. Cras imperdiet metus quam, nec venenatis tellus finibus vitae. Fusce at sem hendrerit, tristique lorem non, efficitur velit. Integer euismod tellus nisl, et ultricies justo varius dapibus. Pellentesque cursus felis a nibh rutrum accumsan. Donec tempor sed risus non pellentesque.
 
@@ -98,3 +101,10 @@ Praesent sed convallis mauris. Praesent sollicitudin metus enim, non volutpat sa
 Fusce in dolor at sapien hendrerit tempus in ac lorem. Etiam dui libero, pharetra non dignissim sed, venenatis nec purus. Curabitur placerat non ex at scelerisque. Pellentesque lacinia ullamcorper lacinia. Aenean tristique metus eget pharetra accumsan. Ut sollicitudin eros quis tristique aliquet. Quisque diam ante, dignissim volutpat risus a, sodales commodo nulla. Proin ac odio ut sem fermentum ultrices. Fusce finibus faucibus leo, eu porta mi fermentum vitae. Etiam laoreet augue sit amet nisi tincidunt, a consequat dui euismod.
 
 Nullam non pulvinar libero. Nulla at dui eu orci tincidunt feugiat. Phasellus vulputate condimentum porta. Etiam faucibus metus et ipsum accumsan, ac bibendum metus eleifend. Aliquam tortor mauris, consequat vitae condimentum id, porttitor et dui. Morbi ac sapien tellus. Etiam diam ligula, tincidunt quis facilisis sit amet, ullamcorper in sapien. Sed efficitur massa sit amet metus congue laoreet. In nec tincidunt quam, eget viverra felis. Donec ornare, mi sed porttitor semper, leo nibh tincidunt felis, vel aliquet purus elit sed magna."""
+
+
+@dataclass
+class ReservWords():
+    lorem: str = text
+    ассаламалейкум: str = "ассаламалейкум дон"
+    динах: tuple = ("иди нахуй", "динах", "иди нах", "идинах", "идиди", "нахуй иди", "пидорас")

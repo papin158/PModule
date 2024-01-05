@@ -11,5 +11,5 @@ async def add_PUser(user: types.User, user_groups: str):
     """
     if user_groups != 'super_admins': return
     users = dbcommands.PUsers()
-    privileged_users[user_groups].add((await users.add(user))['user_id'])
+    privileged_users[user_groups].add((await users.add(user.id))['user_id'])
 

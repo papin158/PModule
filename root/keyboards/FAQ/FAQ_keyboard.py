@@ -7,7 +7,6 @@ from aiogram.filters.callback_data import CallbackData
 from aiogram import types
 from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardMarkup
 
-desc = faq_list
 # desc = np.array([
 #     [
 #         "Как вступить в ПМ?",
@@ -23,7 +22,7 @@ desc = faq_list
 #         'Студенты приходят по разным причинам, среди которых:\n1. Интерес к работе.\n2. Личное развитие.\n3. Социальное влияние',
 #         "Топ-3 компетенции для Проектёра:\n1. Коммуникабельность\n2. Открытость\n3. Критическое мышление",
 #         'У нас 3 завершенных проекта, 1 проект - активный, а также несколько проектов планируются в работу.',
-#         'Боитесь, что не справитесь? Не знаете что делать?\nМы все с чего-то начинаем. Не бойтесь пробовать что-то новое. Никто вас не за что не осудит:)',
+#         'Боитесь, что не справитесь? Не знаете что делать?\nМы все с чего-то начинаем. Не бойтесь пробовать что-то новое. Никто вас ни за что не осудит:)',
 #         'Вы можете обратиться к главе ПМ - Дейчман Анне или к заместителям главы ПМ - Шлячковой Катерине и Бижановой Кристине'
 #     ]
 # ])
@@ -68,16 +67,17 @@ class Inline_FAQ:
         len_rows: int = 1   # Указываем количество колонок
         custom_b: int = 1   # Указываем количество кнопок, которые должны быть в 1 строку
 
-        if desc[0]:  # Если описание не пустое, значит делаем перебор всех значений, и добавление их в таблицу
-            for n, but_desc in enumerate(desc[0]):
+        if faq_list:  # Если описание не пустое, значит делаем перебор всех значений, и добавление их в таблицу
+            for n, but_desc in enumerate(faq_list):
                 builder.button(text=but_desc['question'],
                                callback_data=FAQ_CD(id=n, depth=depth+1, for_delete=for_delete, for_edit=for_edit,
                                                     is_privileged=is_privileged, the_main=the_main))
 
         text = "Назад"  # Стандартный текст кнопки назад
+        puser = privileged_users.get(user.id)
 
-        if user and (isinstance(user, types.User) and user.id in
-                     privileged_users['admins']) or isinstance(user, bool):
+        if user and (isinstance(user, types.User) and puser and
+                     (puser.get('update_faq') or puser.get('super_user'))) or isinstance(user, bool):
             callback_data = Admin_FAQ_CD(admin=True)
         elif not (for_delete or is_privileged or for_edit) or depth == 0:
             callback_data = MainMenu(main=True)
@@ -92,7 +92,7 @@ class Inline_FAQ:
 
         builder.button(text=text, callback_data=callback_data)  # Здесь просто добавляется сформированная кнопка
 
-        buttons = len(desc[0])  # Считаем количество кнопок
+        buttons = len(faq_list)  # Считаем количество кнопок
 
         async def resize(length_rows):  # Функция уменьшает количество колонок, если количество кнопок не может
             if buttons < length_rows * 2:  # составить даже две строки
@@ -103,7 +103,7 @@ class Inline_FAQ:
             len_rows = await resize(length_rows=len_rows)
 
         # Пересчитывает, а так же строит таблицу
-        exec(exe, {'builder': builder, 'buttons': desc[0], 'len_rows': len_rows,
+        exec(exe, {'builder': builder, 'buttons': faq_list, 'len_rows': len_rows,
                    'math': math, 'np': np, 'custom_b': custom_b})
 
         return builder.as_markup()  # Возвращает таблицу (клавиатуру)
@@ -128,17 +128,17 @@ class Inline_FAQ:
         return builder.as_markup()
 
     @classmethod
-    async def confirm_to_delete_faq(cls, depth, empty: bool = False) -> InlineKeyboardMarkup:
+    async def confirm_to_delete_faq(cls, id: int | None, depth, empty: bool = False) -> InlineKeyboardMarkup:
         """
         Подтверждение того, готов ли администратор удалить вопрос из FAQ.
-        :param is_privileged:
+        :param id: Идентификатор вопроса.
         :param empty: Пустой ли список
         :param depth: Глубина меню (многоуровневого).
         :return: Возвращает сформированную клавиатуру (таблицу).
         """
         builder = InlineKeyboardBuilder()
 
-        if not empty: builder.button(text="Готово", callback_data=FAQ_CD(id=0, depth=depth+1, for_delete=True))
+        if not empty or id is None: builder.button(text="Готово", callback_data=FAQ_CD(id=id, depth=depth+1, for_delete=True))
         builder.button(text='Назад', callback_data=Admin_FAQ_CD(admin=True))
 
         return builder.as_markup()

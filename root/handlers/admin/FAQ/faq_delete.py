@@ -1,5 +1,5 @@
 from aiogram import Router, types, filters, html, F
-from root.keyboards.FAQ.FAQ_keyboard import FAQ_CD, Inline_FAQ, desc
+from root.keyboards.FAQ.FAQ_keyboard import FAQ_CD, Inline_FAQ, faq_list
 from root.config import config
 from root.utils.databases.dbcommands import FAQ_SQLRequests
 
@@ -28,17 +28,20 @@ async def redistributor(call: types.CallbackQuery, callback_data: FAQ_CD):
 
 
 async def confirm_delete(call: types.CallbackQuery, depth, mes_id, **kwargs):
-    if len(desc[0]) > 0: text = f"{html.bold(desc[0][mes_id]['question'])} будет удалена."
+    if len(faq_list) > 0: text = f"{html.bold(faq_list[mes_id]['question'])} будет удалена."
     else: text = "Нечего удалять"
-    await call.message.edit_text(text, reply_markup=await Inline_FAQ.confirm_to_delete_faq(depth=depth, empty=len(desc[0]) <= 0))
+    await call.message.edit_text(text, reply_markup=await Inline_FAQ.confirm_to_delete_faq(
+        id=mes_id, depth=depth, empty=len(faq_list) <= 0))
     await call.answer()
 
 
 async def faq_delete(call: types.CallbackQuery, mes_id: int, **kwargs):
     sql = FAQ_SQLRequests()
-    await call.message.edit_text(f"{html.bold(desc[0][mes_id]['question'])} удалена.")
-    await sql.delete(desc[0][mes_id]['question'])
-    desc[0] = await sql.get()
+    await call.message.edit_text(f"{html.bold(faq_list[mes_id]['question'])} удалена.")
+    print(html.bold(faq_list[mes_id]['question']))
+    await sql.delete(faq_list[mes_id]['question'])
+    faq_list.clear()
+    faq_list.extend(await sql.get())
     await call.answer()
 
 router.message.register(get_for_delete, filters.Command("faq_delete"))

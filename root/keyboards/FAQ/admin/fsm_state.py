@@ -1,5 +1,8 @@
 import typing, asyncio
-from aiogram import types, html
+from functools import wraps
+from pprint import pprint
+
+from aiogram import types, html, F, filters, Bot
 from aiogram.fsm.context import FSMContext
 from root.utils.databases import dbcommands
 from root import config
@@ -15,19 +18,72 @@ class FAQ_Edit_CB(CallbackData, prefix='faq_edit_state'):
     answer_only: bool = False
 
 
-async def faq_finish(call: types.CallbackQuery, state: FSMContext, **kwargs):
+def fsm_state_close(FSMSTATE, router):
+    exe = compile(f'''def __ex(FSMSTATE, router):
+    router.message.register(state_cancel, F.text.lower() == 'экстренно_закрыть', filters.StateFilter(FSMSTATE))
+    router.callback_query.register(state_cancel, F.data == 'close_state', filters.StateFilter(FSMSTATE))''',
+                  '', 'exec', optimize=1)
+    exec(exe)
+    return locals()['__ex'](FSMSTATE, router)
+
+
+async def state_cancel(message: types.CallbackQuery, state: FSMContext, bot: Bot,
+                       back: typing.Optional[ReplyKeyboardMarkup] = None):
     context = await state.get_data()
-    sql = dbcommands.FAQ_SQLRequests()
-    faq = await sql.add(question=context['question'], answer=context['answer'])
-    config.faq_list[0] = await sql.get()
-    if context['del_mes']: await context['del_mes'].delete()
-    await context['message_for_edit'].edit_text(html.bold("ЧАВО/ЧЗВ добавлено"))
-    await asyncio.sleep(3)
-    if context['message_for_edit']: await context['message_for_edit'].delete()
+    del_mes = context.get('del_mes')
+    message_for_edit = context.get('message_for_edit')
+    if del_mes: await types.Message.model_validate_json(del_mes).as_(bot).delete()
+
+    if isinstance(message, types.CallbackQuery):
+        call = message
+        mes = await call.message.edit_text("Действие отменено", reply_markup=None)
+        await asyncio.sleep(1)
+        await mes.delete()
+    else:
+        print("DA?")
+        await message.delete()
+        if message_for_edit:
+            await types.Message.model_validate_json(message_for_edit).as_(bot).\
+                edit_text("экстренно закрыто", reply_markup=None)
+            await asyncio.sleep(1)
+            await types.Message.model_validate_json(message_for_edit).as_(bot).delete()
     await state.clear()
 
 
-async def cancel(text):
+def fsm_final(text, del_mes: str = 'del_mes', message_for_edit: str = 'message_for_edit'):
+    """
+
+    :param text: Текст, который будет отправлен при изменении текста сообщения.
+    :param del_mes: Сообщение в FSM-state должно быть удалено, как "экстренное закрытие состояния"
+    :param message_for_edit: Сообщение, которое должно изменяться
+    :return:
+    """
+    def fun_decor(func):
+        @wraps(func)
+        async def wrapper(call, state: FSMContext, bot, *args, **kwargs):
+            context = await state.get_data()
+            kwargs.update(context=context, bot=bot)
+            result = await func(call, state, *args, **kwargs)
+            if context[del_mes] and bot: await (types.Message.model_validate_json(context[del_mes]).as_(bot)).delete()
+            await types.Message.model_validate_json(context[message_for_edit]).as_(bot).edit_text(html.bold(text))
+            await asyncio.sleep(3)
+            await (types.Message.model_validate_json(context[message_for_edit]).as_(bot)).delete()
+            await state.clear()
+            return result
+
+        return wrapper
+    return fun_decor
+
+
+@fsm_final("ЧАВО/ЧЗВ добавлено")
+async def faq_finish(call: types.CallbackQuery, state: FSMContext, context: dict, **kwargs):
+    sql = dbcommands.FAQ_SQLRequests()
+    faq = await sql.add(question=context['question'], answer=context['answer'])
+    config.faq_list.clear()
+    config.faq_list.extend(await sql.get())
+
+
+async def cancel(text) -> InlineKeyboardButton:
     return InlineKeyboardButton(text=text, callback_data='close_state')
 
 

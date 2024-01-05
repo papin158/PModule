@@ -1,6 +1,20 @@
 import aiogram, aiogram.filters.callback_data, typing, inspect, asyncio, concurrent.futures
 
 
+async def always_answer(
+        message: typing.Union[aiogram.types.Message, aiogram.types.CallbackQuery],
+        text: str,
+        reply_markup: typing.Optional[
+                typing.Union[aiogram.types.InlineKeyboardMarkup, aiogram.types.ReplyKeyboardMarkup,
+                aiogram.types.ReplyKeyboardRemove, aiogram.types.ForceReply]
+            ] = None,
+) -> aiogram.types.Message:
+    if isinstance(message, aiogram.types.CallbackQuery):
+        message = message.message
+
+    return await message.answer(text, reply_markup=reply_markup)
+
+
 def execute(message: typing.Union[aiogram.types.Message, aiogram.types.CallbackQuery],
             text: str,
             inline_message_id: typing.Optional[str] = None,
@@ -18,11 +32,15 @@ def execute(message: typing.Union[aiogram.types.Message, aiogram.types.CallbackQ
             callback_data: typing.Optional[typing.Union[aiogram.filters.callback_data.CallbackData,
                                            typing.List, typing.Tuple, typing.Set]] = None,
             advanced_args: typing.Optional[dict] = None,
+            schrodinger_message:
+            typing.Optional[typing.Union[aiogram.types.Message, aiogram.types.CallbackQuery]] = None,
             **kwargs: typing.Any
             ) -> typing.Awaitable[typing.Union[aiogram.types.Message, aiogram.types.CallbackQuery]]:
     """
     Нужен для проверки на изменение сообщения, если было по кнопки - значит будет сообщение изменяться,
     если нет, значит будет отправляться ответ на сообщение.
+    :param schrodinger_message: Сообщение Шрёдингера, либо оно есть, либо нет. 
+    Перекрывает собой message, если существует.
     :param advanced_args: Дополнительные аргументы
     :param callback_data:
     :param text: Сам текст, который нужно отправить.
@@ -43,6 +61,8 @@ def execute(message: typing.Union[aiogram.types.Message, aiogram.types.CallbackQ
     callback_data = update_callback(callback_data)
 
     if isinstance(message, aiogram.types.Message):
+        # Если schrodinger_message существует, то перекрывает собой message.
+        if schrodinger_message: message = schrodinger_message
         reply_markup = create_from_callable_to_sync_markup(reply_markup=reply_markup, callback_data=callback_data,
                                                            advanced_args=advanced_args, message=message)
         return message.answer(
@@ -58,6 +78,10 @@ def execute(message: typing.Union[aiogram.types.Message, aiogram.types.CallbackQ
             **kwargs
         )
     elif isinstance(message, aiogram.types.CallbackQuery):
+        # Если schrodinger_message существует, то перекрывает собой call.message.
+        if schrodinger_message:
+            message = type("message", (), {})
+            message.message = schrodinger_message
         reply_markup = create_from_callable_to_sync_markup(reply_markup=reply_markup, callback_data=callback_data,
                                                            advanced_args=advanced_args, message=message.message)
 
@@ -71,7 +95,7 @@ def execute(message: typing.Union[aiogram.types.Message, aiogram.types.CallbackQ
             **kwargs
         )
     else:
-        raise "Это не сообщение"
+        raise TypeError("Это не сообщение")
 
 
 def you_dont_have_permission(message: aiogram.types.Message):
