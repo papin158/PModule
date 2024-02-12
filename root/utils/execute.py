@@ -1,6 +1,15 @@
 import aiogram, aiogram.filters.callback_data, typing, inspect, asyncio, concurrent.futures
 
 
+async def get_message_to_edit(com: typing.Union[aiogram.types.CallbackQuery, aiogram.types.Message]) -> aiogram.types.Message:
+    if isinstance(com, aiogram.types.Message):
+        return com
+    if isinstance(com, aiogram.types.CallbackQuery):
+        return com.message
+
+    raise ValueError("Это не тип CallbackQuery и не Message")
+
+
 async def always_answer(
         message: typing.Union[aiogram.types.Message, aiogram.types.CallbackQuery],
         text: str,
@@ -42,11 +51,11 @@ def execute(message: typing.Union[aiogram.types.Message, aiogram.types.CallbackQ
     :param schrodinger_message: Сообщение Шрёдингера, либо оно есть, либо нет. 
     Перекрывает собой message, если существует.
     :param advanced_args: Дополнительные аргументы
-    :param callback_data:
+    :param callback_data: Естественно, сами данные, которые передаются после нажатия на кнопку, если она есть.
     :param text: Сам текст, который нужно отправить.
     :param inline_message_id:
     :param parse_mode: Какой режим форматирования будет использоваться HTML, Markdown или MarkdownV2
-    :param entities:
+    :param entities: Если встречаются какие-либо сущности.
     :param disable_web_page_preview:
     :param disable_notification:
     :param protect_content: Защищённый контент.
@@ -54,7 +63,7 @@ def execute(message: typing.Union[aiogram.types.Message, aiogram.types.CallbackQ
     :param allow_sending_without_reply: Можно ли отвечать на это сообщение.
     :param reply_markup: Кнопки.
     :param message: Само сообщение или коллбэк.
-    :return: Возвращается сообщение.
+    :return: Возвращается сообщение, которое является асинхронно-вызываемым.
     """
     # reply_markup должен быть <Callable>, т.е. не вызываясь через await <Awaitable> и без вызова функции ()
     #  <Coroutine>
@@ -154,59 +163,13 @@ def is_privileged(
     else: return False
 
 
-def awaitable_reply_markup(
-    reply_markup: typing.Callable,
-    callback_data: typing.Optional[typing.Union[aiogram.filters.callback_data.CallbackData,
-                                typing.Set]] = None,
-    advanced_args: typing.Optional[dict] = None,
-    message: aiogram.types.Message|None = None
-) -> typing.Union[aiogram.types.InlineKeyboardMarkup, aiogram.types.ReplyKeyboardMarkup,
-                  aiogram.types.ReplyKeyboardRemove, aiogram.types.ForceReply]:
-    """
-
-    :param message:
-    :param advanced_args:
-    :param reply_markup: Вызываемая, асинхронная функция.
-    :param callback_data: Коллбэк-дата, по данным которой нужно всё установить в функцию.
-    :return: Возвращается корутина с внедрёнными параметрами.
-    """
-    if not callback_data: return reply_markup(depth=0)
-
-    is_callback = False
-    bra = ''
-    # Получаю все параметры вызываемой функции, и создаю из него множества из-за выигрыша в скорости
-    params = set(inspect.signature(reply_markup).parameters)    #
-
-    if isinstance(callback_data, aiogram.filters.callback_data.CallbackData):
-        temp = {*callback_data.model_fields.keys()}
-        is_callback = True
-    else: temp = callback_data
-
-    if advanced_args:  # сложность операций = O(1) + O(1*n) + O(n) = O(1) + 2 * O(n)
-        for callback in advanced_args:  # Просто перебор O(n)
-            if (callback not in temp) and callback in params:  # Проверка значения на вхождение, сложность O(1); значения в множествах - хеш
-                bra += f'{callback}=advanced_args["{callback}"],'  # Но это находится в цикле поэтому O(n)
-
-    temp = temp & params
-    if is_callback:
-        for callback in temp:
-            bra += f'{callback}=callback_data.{callback},'
-    else:
-        for callback in temp:
-            bra += f'{callback}=True,'
-
-    return eval(f'reply_markup({bra})')
-
-
 def update_callback(callback_data: typing.Any) -> typing.Set:
     if isinstance(callback_data, aiogram.filters.callback_data.CallbackData):
         callback_data = callback_data
     elif isinstance(callback_data, typing.Set):
-        # callback_data.add('the_main')
         callback_data = callback_data
     elif isinstance(callback_data, typing.Tuple) or isinstance(callback_data, typing.List):
         callback_data = {*callback_data}
-        # callback_data.add('the_main')
     return callback_data
 
 
@@ -246,3 +209,51 @@ def create_from_callable_to_sync_markup(
         # Передаём в клавиатуру результат
         reply_markup = result
     return reply_markup
+
+
+def awaitable_reply_markup(
+    reply_markup:  typing.Callable,
+    callback_data: typing.Optional[
+                   typing.Union[
+                       aiogram.filters.callback_data.CallbackData,
+                       typing.Set
+                   ]] = None,
+    advanced_args: typing.Optional[dict] = None,
+    message: aiogram.types.Message | None = None
+) -> typing.Union[aiogram.types.InlineKeyboardMarkup, aiogram.types.ReplyKeyboardMarkup,
+                  aiogram.types.ReplyKeyboardRemove, aiogram.types.ForceReply]:
+    """
+
+    :param message:
+    :param advanced_args: Дополнительные параметры
+    :param reply_markup: Вызываемая, асинхронная функция.
+    :param callback_data: Коллбэк-дата, по данным которой нужно всё установить в функцию.
+    :return: Возвращается корутина с внедрёнными параметрами.
+    """
+
+    if not callback_data: return reply_markup()
+
+    is_callback = False
+    bra = ''
+    # Получаю все параметры вызываемой функции, и создаю из него множества из-за выигрыша в скорости
+    params = set(inspect.signature(reply_markup).parameters)    #
+
+    if isinstance(callback_data, aiogram.filters.callback_data.CallbackData):
+        temp = {*callback_data.model_fields.keys()}
+        is_callback = True
+    else: temp = callback_data
+
+    if advanced_args:  # сложность операций = O(1) + O(1*n) + O(n) = O(1) + 2 * O(n)
+        for callback in advanced_args:  # Просто перебор O(n)
+            if (callback not in temp) and callback in params:  # Проверка значения на вхождение, сложность O(1); значения в множествах - хеш
+                bra += f'{callback}=advanced_args["{callback}"],'  # Но это находится в цикле поэтому O(n)
+
+    temp = temp & params
+    if is_callback:
+        for callback in temp:
+            bra += f'{callback}=callback_data.{callback},'
+    else:
+        for callback in temp:
+            bra += f'{callback}=True,'
+
+    return eval(f'reply_markup({bra})')

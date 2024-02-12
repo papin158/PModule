@@ -4,7 +4,7 @@ from .delete_group import *
 from .editable_groups import *
 
 
-async def group_redistributor(call: types.CallbackQuery, callback_data: SuperUserMenu, state: FSMContext):
+async def group_redistributor(call: types.CallbackQuery, callback_data: GroupEditable, state: FSMContext):
     depth_func = {
         0: manage_groups,
         1: select_choice_group_or_subgroup_edit if callback_data.edit else select_delete_group,

@@ -112,7 +112,8 @@ async def settings_navigate(call: CallbackQuery, callback_data: GPTCallback):
 
 
 async def clear_user_context(call: CallbackQuery):   #Нужно для очистки контекста
-    await users[f'{call.from_user.id}']['context'].clear()
+    if users[f'{call.from_user.id}']['context']:
+        await users[f'{call.from_user.id}']['context'].clear()
     await call.message.edit_text("Контекст удалён", reply_markup=None)
 
 

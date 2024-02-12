@@ -4,12 +4,12 @@ from copy import deepcopy
 from aiogram import types, html
 from aiogram.fsm.context import FSMContext
 
-from root.config import Group as config_group, privileged_users, update_privileged_users as update_groups
-from root.keyboards.super_users.super_users import SuperUserMenu, Inline
+from root.config import Group as config_group, privileged_users
+from root.keyboards.super_users import GroupEditable, Inline
 from root.utils.databases.postgresql import SGroups
 
 
-async def choice_which_group_to_obey(call: types.CallbackQuery, callback_data: SuperUserMenu, state: FSMContext) \
+async def choice_which_group_to_obey(call: types.CallbackQuery, callback_data: GroupEditable, state: FSMContext) \
         -> None:
     """
     Основная структура, которая отвечает за комплекс мер по изменению субординации. Именно она будет вызываться
@@ -50,7 +50,8 @@ async def choice_which_group_to_obey(call: types.CallbackQuery, callback_data: S
                                      editable_group=editable_group,
                                      temp_groups=temp_subordinate[editable_group]['subordinate_groups'],
                                      sub_groups=subgroups,
-                                     index_editable_group=callback_data.index_editable_group
+                                     index_editable_group=callback_data.index_editable_group,
+                                     menu=GroupEditable
                                  ))
 
     await state.update_data(iter=iter+1, temp_groups=temp_groups, selected_groups=selected_groups, subgroups=subgroups,
@@ -59,7 +60,7 @@ async def choice_which_group_to_obey(call: types.CallbackQuery, callback_data: S
 
 
 def create_subgroups(call: types.CallbackQuery, editable_group: str,
-                           temp_groups: dict[..., config_group]) -> list:
+                     temp_groups: dict[..., config_group]) -> list:
     """
     Назначение какой-либо группе подчинённой.
     :param call: Нужен для получения id пользователя, мне так захотелось.
@@ -76,8 +77,8 @@ def create_subgroups(call: types.CallbackQuery, editable_group: str,
     return list(sorted(subgroups))
 
 
-def update_subgroups(callback_data: SuperUserMenu, selected_groups: set, subgroups: list
-                           ) -> typing.Optional[typing.Iterable]:
+def update_subgroups(callback_data: GroupEditable, selected_groups: set, subgroups: list
+                     ) -> typing.Optional[typing.Iterable]:
     """
     Список, который будет показывать пользователю, какие группы в каком состоянии.
     :param callback_data: Данные из системы обратных связей aiogram, чтобы получать доступ к изменённым структурам.
@@ -92,8 +93,8 @@ def update_subgroups(callback_data: SuperUserMenu, selected_groups: set, subgrou
     return list(selected_groups)
 
 
-async def what_subgroups_changed(callback_data: SuperUserMenu, selected_groups: list, subgroups: list
-                           ) -> typing.Optional[typing.Iterable]:
+async def what_subgroups_changed(callback_data: GroupEditable, selected_groups: list, subgroups: list
+                                 ) -> typing.Optional[typing.Iterable]:
     """
     Проверка данных на ввод, если пользователь меняет какую-то группу, она должна быть в списке, чтобы ничего не
     терялось.
@@ -110,7 +111,7 @@ async def what_subgroups_changed(callback_data: SuperUserMenu, selected_groups: 
     return selected_groups
 
 
-async def edit_subgroups(call: types.CallbackQuery, callback_data: SuperUserMenu, state: FSMContext):
+async def edit_subgroups(call: types.CallbackQuery, **_):
     await call.message.edit_text("Выберите группу, которой нужно настроить иерархию", reply_markup=None)
 
 
@@ -135,5 +136,3 @@ async def finish_editing_group_subordinates(context: dict) -> None:
     if add_inheritance:
         for group in add_inheritance:
             await sgroups.add_one(editable_group, group)
-
-    await update_groups()

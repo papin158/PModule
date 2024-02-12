@@ -2,6 +2,8 @@ import numpy as np, math, aiogram, typing
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.filters.callback_data import CallbackData
 from collections import namedtuple, deque
+from ..config import admin_callbacks
+from .all_states import *
 
 
 __all__ = [
@@ -64,3 +66,6 @@ async def main_keyboard(suser_callback=None):
 class MainMenu(CallbackData, prefix='main_menu'):
     main: bool = False
     cancel: bool = False
+
+
+# admin_callbacks.add('main_menu')

@@ -1,12 +1,12 @@
 from aiogram import types, html
 from aiogram.fsm.context import FSMContext
 
-from root.keyboards.super_users.super_users import SuperUserMenu, Inline
+from root.keyboards.super_users import GroupEditable, Inline
 from root.config import Group as config_group, groups
 from root.utils.databases.postgresql import Groups
 
 
-async def edit_group_permission(call: types.CallbackQuery, callback_data: SuperUserMenu, state: FSMContext):
+async def edit_group_permission(call: types.CallbackQuery, callback_data: GroupEditable, state: FSMContext):
     """
     Изменяются разрешения для каждой отдельной группы.
     :param call:
@@ -26,8 +26,8 @@ async def edit_group_permission(call: types.CallbackQuery, callback_data: SuperU
     await call.message.edit_text(f"Изменяются права группы \"{html.bold(editable_group)}\"",
                                  reply_markup=await Inline.group_permission_edit(
                                      depth=callback_data.depth, editable_group=editable_group,
-                                     edit=callback_data.edit, add_group=callback_data.add_group,
-                                     temp_groups=temp_groups, index_editable_group=callback_data.index_editable_group,
+                                     edit=callback_data.edit, temp_groups=temp_groups,
+                                     index_editable_group=callback_data.index_editable_group,
                                      delete=callback_data.delete, user_id=call.from_user.id
                                  ))
 

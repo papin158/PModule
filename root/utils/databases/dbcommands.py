@@ -44,6 +44,9 @@ class RedisDatabase(metaclass=ABCMeta):
         super().__init__()
         self.connector: RConnection = pool.Redis
 
+    # def __del__(self):
+    #     self.connector.close()
+
     @abstractmethod
     async def add(self, *args, **kwargs): ...
 
@@ -157,7 +160,7 @@ class PUsers(DataBase):
     async def delete(self, user_id):
         query = '''DELETE FROM "PUsers" WHERE user_id=$1;
                 '''
-        return self.connector.execute(query, user_id)
+        return await self.connector.execute(query, user_id)
 
 
 class SGroups(DataBase):

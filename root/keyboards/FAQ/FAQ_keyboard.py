@@ -1,11 +1,16 @@
+from collections import deque
+from enum import Enum, auto
+
 import numpy as np, math
 from typing import Optional
 from root.keyboards import exe, MainMenu, all_keyboards_for_main_manu, Iteration_CallbackData
-from root.config.config import faq_list, privileged_users
+from root.config.config import faq_list, privileged_users, admin_callbacks, faq_group_list
+from ..button_sorter import ButtonSorter
+from .. import close
 from .admin import fsm_state
 from aiogram.filters.callback_data import CallbackData
 from aiogram import types
-from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardMarkup
+from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardMarkup, InlineKeyboardButton
 
 # desc = np.array([
 #     [
@@ -27,10 +32,14 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardMarkup
 #     ]
 # ])
 
+# admin_callbacks.update(('faq', 'amd_faq'))
+admin_callbacks.add('adm_faq')
+
 
 class FAQ_CD(CallbackData, prefix='faq'):
     __slots__ = ()
     id: Optional[int] = None
+    group_id: Optional[int] = None
     depth: int
     for_delete: bool = False
     for_edit: bool = False
@@ -39,14 +48,110 @@ class FAQ_CD(CallbackData, prefix='faq'):
     is_privileged: bool = True
 
 
-class Admin_FAQ_CD(CallbackData, prefix='amd_faq'):
+class FAQGroup(CallbackData, prefix='group_faq'):
+    __slots__ = ()
+    # group_id: int
+    depth: int
+    group: Optional[str] = ''
+    admin_panel: bool = False
+    delete: bool = False
+    edit: bool = False
+    back: bool = False
+    mov: bool = False
+    done: bool = False
+    cancel: bool = False
+    func_depth: int = 0
+
+
+class PseudoCB(CallbackData, prefix='pseudo_faq'):
+    __slots__ = ()
+    depth: int
+    group: Optional[str] = ''
+    param_state: int = -1
+    # delete: bool = False
+    # edit: bool = False
+    # back: bool = False
+    # done: bool = False
+    func_depth: int = 0
+
+
+class ParamState(int, Enum):
+    create = auto()
+    edit = auto()
+    delete = auto()
+    mov = auto()
+
+
+class DynamicParam(int, Enum):
+    back = auto()
+    cancel = auto()
+    done = auto()
+
+
+class Admin_FAQ_CD(CallbackData, prefix='adm_faq'):
     __slots__ = ()
     admin: bool = False
-    # depth: Optional[int] = None
 
 
 class Inline_FAQ:
     __slots__ = ()
+
+    @classmethod
+    async def get_faq_group(cls, depth: int, group_list: dict,
+                            back_group: str = '',
+                            delete=False,
+                            edit=False,
+                            mov=False,
+                            cancel=False,
+                            in_mov=False,
+                            func_depth: int = 0,
+                            other_group='',
+                            **kwargs) -> InlineKeyboardMarkup:
+        builder = InlineKeyboardBuilder()
+
+        if mov:
+            sep = 2 if (depth - 3) > 0 else 0
+        else: sep = 1
+
+        ButtonSorter(
+            buttons=deque(
+                InlineKeyboardButton(
+                    text=group,
+                    callback_data=FAQGroup(group=group, depth=(depth+sep) if not delete else depth,
+                                           func_depth=func_depth+sep, delete=delete, edit=edit, mov=mov).pack()
+                ) for group in group_list if group != 'answer'),
+            builder=builder
+        ).sort()
+
+        match kwargs.get('the_main'):
+            case True: button = close("Закрыть")
+            case _: button = InlineKeyboardButton(
+                text="Назад", callback_data=MainMenu(main=True).pack() if depth <= 0 and not mov else FAQGroup(
+                    depth=(depth-sep) if not delete or edit or cancel else depth, func_depth=func_depth-sep, group='',
+                    delete=delete if func_depth < 0 else False, back=True, mov=mov
+                ).pack())
+            # case _: button = InlineKeyboardButton(
+            #     callback_data=FAQGroup(
+            #         depth=depth, func_depth=func_depth, delete=delete, mov=mov, back=True
+            #                            ).pack(),
+            #     text="Назад")
+
+        builder.row(button)
+
+        if mov and bool(kwargs.get("tmp_perem")) is False:
+            btn1 = InlineKeyboardButton(
+                text="Переместить сюда", callback_data=FAQGroup(
+                    group=other_group, depth=depth, mov=True, done=True
+                ).pack()
+            )
+            btn2 = InlineKeyboardButton(
+                text="Отмена", callback_data=FAQGroup(
+                    depth=depth, group=other_group, back=True, mov=True, cancel=True
+                ).pack())
+
+            builder.row(btn1).row(btn2)
+
+        return builder.as_markup()
 
     @classmethod
     async def get_faq(cls, depth, for_delete: bool = False, the_main: bool = False, for_edit: bool = False,
@@ -74,7 +179,7 @@ class Inline_FAQ:
                                                     is_privileged=is_privileged, the_main=the_main))
 
         text = "Назад"  # Стандартный текст кнопки назад
-        puser = privileged_users.get(user.id)
+        puser = privileged_users.get(user.id) if hasattr(user, 'id') else None
 
         if user and (isinstance(user, types.User) and puser and
                      (puser.get('update_faq') or puser.get('super_user'))) or isinstance(user, bool):
@@ -128,7 +233,7 @@ class Inline_FAQ:
         return builder.as_markup()
 
     @classmethod
-    async def confirm_to_delete_faq(cls, id: int | None, depth, empty: bool = False) -> InlineKeyboardMarkup:
+    async def confirm_to_delete_faq(cls, group: str, depth, func_depth) -> InlineKeyboardMarkup:
         """
         Подтверждение того, готов ли администратор удалить вопрос из FAQ.
         :param id: Идентификатор вопроса.
@@ -138,8 +243,8 @@ class Inline_FAQ:
         """
         builder = InlineKeyboardBuilder()
 
-        if not empty or id is None: builder.button(text="Готово", callback_data=FAQ_CD(id=id, depth=depth+1, for_delete=True))
-        builder.button(text='Назад', callback_data=Admin_FAQ_CD(admin=True))
+        builder.button(text="Готово", callback_data=FAQGroup(group=group, depth=depth, func_depth=func_depth+1, delete=True, admin_panel=True, done=True))
+        builder.button(text='Назад', callback_data=FAQGroup(depth=depth, func_depth=func_depth-1, delete=True, back=True, admin_panel=True))
 
         return builder.as_markup()
 
@@ -156,6 +261,24 @@ class Inline_FAQ:
         return builder.as_markup()
 
     @classmethod
+    async def group_faq_table(cls, depth, group, groups, prev_group: str = '', **kwargs) -> InlineKeyboardMarkup:
+        builder = InlineKeyboardBuilder()
+
+        builder.button(text="список групп FAQ", callback_data=FAQGroup(admin_panel=True, depth=depth+1, group=group))
+        builder.button(text="создать группу FAQ", callback_data=fsm_state.FAQ_Edit_CB(depth=0))  # FAQGroup(depth=depth+1, create=True))
+        if groups > 1 or groups > 0 and depth == 0:
+            builder.button(text="редактировать группу FAQ", callback_data=FAQGroup(depth=depth, func_depth=0, edit=True, admin_panel=True))
+            builder.button(text="удалить группу FAQ", callback_data=FAQGroup(depth=depth, func_depth=0, delete=True, admin_panel=True))
+            builder.button(text="перенести группу", callback_data=FAQGroup(depth=depth, func_depth=0, mov=True, admin_panel=True, group=prev_group))
+        builder.button(text="Назад", callback_data=MainMenu(main=True) if depth <= 0 else FAQGroup(
+            depth=depth-1, create=bool(kwargs.get('create')), edit=bool(kwargs.get('edit')), delete=bool(kwargs.get('delete')),
+            group=prev_group, back=True, admin_panel=True, mov=bool(kwargs.get('mov'))  # kwargs.get('prev_group')
+        ))
+
+        builder.adjust(2, 2, 1, 1)
+        return builder.as_markup()
+
+    @classmethod
     async def admin_table(cls, depth, user: types.User) -> InlineKeyboardMarkup:
         builder = InlineKeyboardBuilder()
 
@@ -163,17 +286,17 @@ class Inline_FAQ:
         builder.button(text="создать FAQ", callback_data=fsm_state.FAQ_Edit_CB(depth=0))
         builder.button(text="изменить FAQ", callback_data=FAQ_CD(id=0, depth=depth, for_edit=True, is_privileged=False))
         builder.button(text="удалить FAQ", callback_data=FAQ_CD(id=0, depth=depth, for_delete=True, is_privileged=False))
-        builder.button(text="Назад FAQ", callback_data=MainMenu(main=True))
+        builder.button(text="Назад FAQ", callback_data=FAQGroup(depth=depth-1))
 
         builder.adjust(2)
 
         return builder.as_markup()
 
 
-callback = FAQ_CD(id=0, depth=0)
+# callback = FAQ_CD(id=0, depth=0)
 
 
 all_keyboards_for_main_manu.append(
-    Iteration_CallbackData(description="ЧаВо/FAQ", callback=FAQ_CD(id=0, depth=0))
+    Iteration_CallbackData(description="ЧаВо/FAQ", callback=FAQGroup(depth=0))
 )
 

@@ -10,18 +10,20 @@ all_gpt_providers = np.array([
     BaseProvider,  AsyncProvider,  AsyncGeneratorProvider,
     RetryProvider, Acytoo,  AiAsk, Aibn,  Aichat,
     Ails, Aivvm,  AiService, AItianhu, AItianhuSpace,
-    Aivvm, Bard,  Bing, ChatBase, ChatForAi, Chatgpt4Online,
+    Aivvm, Bard, Berlin,  Bing, Bestim, ChatBase, ChatForAi, Chatgpt4Online,
     ChatgptAi, ChatgptDemo, ChatgptDuo, ChatgptFree,
     ChatgptLogin, ChatgptX, Cromicle, DeepInfra,
     CodeLinkAva, DfeHub, EasyChat, Forefront,
     FakeGpt, FreeGpt, GPTalk, GptChatly, GptForLove,
     GetGpt, GptGo,  GptGod, Hashnode,
     H2o, HuggingChat, Liaobots, Llama2, Lockchat,
-    Myshell, MyShell, NoowAi, Opchatgpts,
+    Myshell, MyShell, Opchatgpts,
     Raycast, OpenaiChat, OpenAssistant,
     PerplexityAi, Phind, Theb, Vercel, Vitalentum,
     Wewordle, Ylokh, You, Yqcloud, Equing, FastGpt,
     Wuguokai, V50, GeekGpt], dtype=object)
+
+# config.admin_callbacks.add("gpt")
 
 
 class GPTVersion(enum.Enum):

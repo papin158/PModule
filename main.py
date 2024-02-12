@@ -1,10 +1,14 @@
-from aiogram import Dispatcher, Bot
+__author__ = 'papin158'
+
+import aiogram.types
+from aiogram import Dispatcher, Bot, F
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.redis import RedisStorage
 from root import config
+from root.middlewares.contact_support import Contact
+from root.middlewares.throttling import Throttling
 from root.utils.databases.dbcommands import FAQ_SQLRequests, Context_SQLRequest, SGroups
-from root.middlewares.check_user import CheckUser
-from root.filters.admins import add_PUser
+from root.middlewares.check_user import CheckUserUpdate, close_any_state, is_admin
 import asyncio, root, app, collections
 
 
@@ -31,8 +35,12 @@ async def main():
     del faq
     await config.update_privileged_users()
 
-    dp.update.middleware.register(CheckUser())
+    # dp.message.middleware.register(Throttling(storage))
+    dp.update.outer_middleware.register(CheckUserUpdate())
+    dp.callback_query.middleware.register(is_admin.CheckAdminFuncs())
+    dp.callback_query.register(close_any_state, F.data.in_({'close_state', 'экстренно_закрыть'}))
     dp.include_routers(root.router, app.router)
+    dp.update.middleware.register(Contact(bot))
 
     await bot.delete_webhook(drop_pending_updates=True)
 

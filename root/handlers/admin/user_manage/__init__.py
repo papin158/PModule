@@ -1,13 +1,13 @@
 from .edit_user import *
+from .add_user import *
+from .ban_user import *
 
-from root.keyboards.super_users.super_users import SuperUserMenu, Inline
 
-
-async def user_distributor(call: types.CallbackQuery, callback_data: SuperUserMenu, state: FSMContext, bot: Bot):
+async def user_distributor(call: types.CallbackQuery, callback_data: UserEditable, state: FSMContext, bot: Bot):
     user_depth = {
         0: manage,
         1: user_group_selection,
-        2: user_select,
+        2: add_user if callback_data.create else ban if callback_data.ban else user_select,
         3: get_method
     }
 
@@ -19,6 +19,8 @@ async def user_distributor(call: types.CallbackQuery, callback_data: SuperUserMe
     )
 
 
-async def manage(call: types.CallbackQuery, callback_data: SuperUserMenu, state: FSMContext, **kwargs):
+async def manage(call: types.CallbackQuery, callback_data: UserEditable, state: FSMContext, **kwargs):
     text = "Выберите действие"
+    perem_iteration.i = None
+    await state.clear()
     await call.message.edit_text(text, reply_markup=await Inline.work_with_users(0))

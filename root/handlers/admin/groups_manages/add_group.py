@@ -3,21 +3,25 @@ from aiogram.fsm.context import FSMContext
 
 from root.config import groups, privileged_users
 from root.config import update_privileged_users as update_groups
-from root.keyboards.FAQ.admin.fsm_state import default_cancel, fsm_final
-from root.keyboards.super_users.super_users import SuperUserMenu, Inline
+from root.keyboards.FAQ.admin.fsm_state import default_cancel, fsm_final, fsm_start
+from root.keyboards.super_users import GroupEditable, Inline
 from root.utils.fsm.admin_menu import AddNewGroup
 
 
-async def add_group(call: types.CallbackQuery, callback_data: SuperUserMenu, state: FSMContext, **kwargs):
+async def add_group(call: types.CallbackQuery, callback_data: GroupEditable, state: FSMContext, **kwargs):
     """
     Создание новой группы
     :return:
     """
-    message_for_edit = await call.message.edit_text("Придумай и напиши название группы", reply_markup=None)
-    del_mes = await call.message.answer("_", reply_markup=await default_cancel())
-    await state.update_data(message_for_edit=message_for_edit.model_dump_json(), del_mes=del_mes.model_dump_json(),
-                            depth=callback_data.depth)
-    await state.set_state(AddNewGroup.NAME_NEW_GROUP)
+    await fsm_start(
+        callback_data=callback_data, **kwargs,
+        message=call, state=state,
+        text="Придумай и напиши название группы", fsm_state=AddNewGroup.NAME_NEW_GROUP, markup=None)
+    # message_for_edit = await call.message.edit_text("Придумай и напиши название группы", reply_markup=None)
+    # del_mes = await call.message.answer("_", reply_markup=await default_cancel())
+    # await state.update_data(message_for_edit=message_for_edit.model_dump_json(), del_mes=del_mes.model_dump_json(),
+    #                         depth=callback_data.depth)
+    # await state.set_state(AddNewGroup.NAME_NEW_GROUP)
 
 
 async def send_new_group(message: types.Message, state: FSMContext, bot: Bot, **kwargs):
@@ -30,7 +34,7 @@ async def send_new_group(message: types.Message, state: FSMContext, bot: Bot, **
     if text not in groups:
         await mes.edit_text(
             f"Группа будет названа {html.pre(text)}\nЕсли всё устраивает нажмите \"Готово\"",
-            reply_markup=await Inline.finish(depth=context['depth'], add_group=True, create=True))
+            reply_markup=await Inline.finish(depth=context['depth'], create=True))
         await state.update_data(group_name=text)
         return
 

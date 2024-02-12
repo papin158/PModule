@@ -20,19 +20,6 @@ async def create_one_faq(message: types.Message | types.CallbackQuery, bot: Bot,
         message=message, text="Заголовок FAQ", fsm_state=FAQ.GET_QUESTION,
         markup=Inline.FAQ_create, p_f_c_b={'text': "Изменить всё"}, **kwargs
     )
-    # context = await state.get_data()
-    # message_for_edit = context.get('message_for_edit')
-    # del_mes = context.get('del_mes')
-    # if message_for_edit: message_for_edit = types.Message.model_validate_json(message_for_edit).as_(bot)
-    # if not del_mes: del_mes = await always_answer(message, reply_markup=await default_cancel(), text='_',)
-    # else: del_mes = types.Message.model_validate_json(del_mes).as_(bot)
-    # mes = await execute(message, "Заголовок FAQ", reply_markup=await Inline.FAQ_create(depth, text="Изменить всё"),
-    #                     schrodinger_message=message_for_edit)
-    # if isinstance(message, types.Message) and message.from_user.id != bot.id and context: await message.delete()
-    # await state.update_data(message_for_edit=mes.model_dump_json(), del_mes=del_mes.model_dump_json())
-    #
-    # await state.set_state(FAQ.GET_QUESTION)
-    pass
 
 
 async def faq_get_question(message: types.Message | types.CallbackQuery, bot: Bot, state: FSMContext, depth=1):
@@ -96,8 +83,7 @@ async def settings_state(call: types.CallbackQuery, callback_data: FAQ_Edit_CB, 
     )
 
 
-router.message.register(create_one_faq, filters.Command("create_faq"))
-fsm_state_close(FAQ, router)
+# fsm_state_close(FAQ, router)
 router.message.register(faq_get_question, FAQ.GET_QUESTION)
 router.message.register(faq_get_answer, FAQ.GET_ANSWER)
 router.callback_query.register(settings_state, FAQ_Edit_CB.filter(F.title_only.is_(False)))

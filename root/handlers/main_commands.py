@@ -25,22 +25,19 @@ async def account(message: types.Message | types.CallbackQuery, callback_data: M
     text = "Выберите настройку"
     admin_menu = None
     puser = privileged_users.get(message.from_user.id) if message.from_user else None
-    if puser and (puser.get('update_permissions_subgroup') or puser.get('update_user_group') or puser.get('super_user')):
+    if puser:  # and (puser.get('update_permissions_subgroup') or puser.get('update_user_group') or puser.get('super_user')):
         admin_menu = SuperUserMenu()
-    if isinstance(message, types.CallbackQuery):
-        call = message
-        if callback_data.main:
-            await call.message.edit_text(text, reply_markup=await main_keyboard(admin_menu))
-        else:
-            await call.message.edit_text("Настройка завершена", reply_markup=None)
-        await call.answer()
-    else:
-        await message.answer(text, reply_markup=await main_keyboard(admin_menu))
+    await execute(message, text, reply_markup=await main_keyboard(admin_menu))
 
 
 async def menu_cancel(message: types.Message | types.CallbackQuery, callback_data: MainMenu = None):
     await execute(message, "Действие отменено", reply_markup=None)
 
+
+async def say_hello(message: types.Message):
+    await message.answer("Дароу братка")
+
+router.message.register(say_hello, filters.Command("start"), F.from_user.id.in_(privileged_users))
 router.message.register(start_method, filters.Command("start"))
 router.callback_query.register(account, MainMenu.filter(F.main))
 router.callback_query.register(menu_cancel, MainMenu.filter(F.cancel))

@@ -5,7 +5,6 @@ router = Router()
 
 
 async def check_users(message: types.Message):
-    print(types.ChatMember)
     await message.answer("Бульк")
 
 
